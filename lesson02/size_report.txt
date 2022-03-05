@@ -1,0 +1,62 @@
+-- Get tables from DB
+\dt+
+                                              List of relations
+ Schema |          Name           | Type  |  Owner   | Persistence | Access method |    Size    | Description
+--------+-------------------------+-------+----------+-------------+---------------+------------+-------------
+ public | attachment_membership   | table | postgres | permanent   | heap          | 8192 bytes |
+ public | attachments             | table | postgres | permanent   | heap          | 16 kB      |
+ public | group_group_membership  | table | postgres | permanent   | heap          | 8192 bytes |
+ public | groups                  | table | postgres | permanent   | heap          | 16 kB      |
+ public | task_control_membership | table | postgres | permanent   | heap          | 8192 bytes |
+ public | task_membership         | table | postgres | permanent   | heap          | 8192 bytes |
+ public | task_statuses           | table | postgres | permanent   | heap          | 16 kB      |
+ public | tasks                   | table | postgres | permanent   | heap          | 16 kB      |
+ public | user_group_membership   | table | postgres | permanent   | heap          | 8192 bytes |
+ public | users                   | table | postgres | permanent   | heap          | 16 kB      |
+(10 rows)
+
+-- Count rows from tables
+ANALYZE;
+SELECT oid::regclass::text AS tablename, reltuples::bigint AS rows_estim
+FROM pg_class
+WHERE oid::regclass::text IN
+    (SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema='public' AND table_type='BASE TABLE');
+
+        tablename        | rows_estim
+-------------------------+------------
+ task_membership         |          3
+ users                   |          6
+ groups                  |          7
+ user_group_membership   |          7
+ group_group_membership  |          2
+ task_statuses           |          8
+ task_control_membership |          3
+ attachment_membership   |          5
+ attachments             |          5
+ tasks                   |          8
+(10 rows)
+
+-- Get used space per table
+SELECT oid::regclass::text AS tablename, pg_total_relation_size(oid) AS size_bytes
+FROM pg_class
+WHERE relkind = 'r' AND NOT (oid::regclass::text LIKE 'pg_%' OR oid::regclass::text LIKE 'information_schema%')
+ORDER BY size_bytes DESC;
+
+        tablename        | size_bytes
+-------------------------+------------
+ tasks                   |      32768
+ users                   |      32768
+ groups                  |      32768
+ task_statuses           |      32768
+ attachments             |      32768
+ task_membership         |      24576
+ task_control_membership |      24576
+ attachment_membership   |      24576
+ user_group_membership   |      24576
+ group_group_membership  |      24576
+(10 rows)
+
+du -sh $PGDATA
+51M     /var/lib/postgresql/data
