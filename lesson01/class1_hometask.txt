@@ -1,0 +1,90 @@
+-- 1. Create user
+CREATE USER gopher
+WITH PASSWORD 'P@ssw0rd';
+
+-- 2. Create database
+CREATE DATABASE gopher_corp
+    TEMPLATE = 'template0'
+    ENCODING = 'utf-8'
+    LC_COLLATE = 'C.UTF-8'
+    LC_CTYPE = 'C.UTF-8';
+
+-- Create some required settings
+-- Set timezone to Yekaterinburg (GMT+05)
+set timezone = 'Asia/Yekaterinburg';
+-- Create extension to use cryptography functions in queries
+CREATE EXTENSION pgcrypto;
+-- Create enumeration type
+CREATE TYPE user_status AS ENUM ('enabled', 'blocked', 'disabled');
+
+-- 3. Create table users
+CREATE TABLE users (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    login VARCHAR(100) NOT NULL,
+    password TEXT NOT NULL,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    middle_name VARCHAR(100),
+    email TEXT,
+    phone TEXT,
+    avatar TEXT,
+    status user_status NOT NULL,
+    created_date TIMESTAMP NOT NULL DEFAULT now(),
+    expired_date TIMESTAMP
+);
+
+-- 4. Insert data into table users
+INSERT INTO users(login, password, first_name, last_name, email, status)
+VALUES
+    ('admin', crypt('password', gen_salt('bf', 8)), 'Administrator', 'TaskSystem', 'admin@example.loc', 'enabled'),
+    ('ptsypyshev', crypt('testpass', gen_salt('bf', 8)), 'Pavel', 'Tsypyshev', 'ptsypyshev@example.loc', 'enabled'),
+    ('vpupkin', crypt('puptest', gen_salt('bf', 8)), 'Vasiliy', 'Pupkin', 'vpupkin@example.loc', 'disabled');
+
+-- 5. Use meta commands
+\conninfo
+You are connected to database "gopher_corp" as user "gopher" on host "127.0.0.1" at port "5432".
+
+\l
+                                  List of databases
+    Name     |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges
+-------------+----------+----------+------------+------------+-----------------------
+ gopher_corp | gopher   | UTF8     | C.UTF-8    | C.UTF-8    | gopher=CTc/gopher
+ postgres    | postgres | UTF8     | en_US.utf8 | en_US.utf8 |
+ template0   | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+             |          |          |            |            | postgres=CTc/postgres
+ template1   | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+             |          |          |            |            | postgres=CTc/postgres
+(4 rows)
+
+\dt
+        List of relations
+ Schema | Name  | Type  | Owner
+--------+-------+-------+--------
+ public | users | table | gopher
+(1 row)
+
+\dT
+         List of data types
+ Schema |    Name     | Description
+--------+-------------+-------------
+ public | user_status |
+(1 row)
+
+-- Use SQL commands to get data from table
+SELECT * FROM users;
+ id |   login    |                           password                           |  first_name   | last_name  | middle_name |         email          | phone | avatar |  status  |        created_date
+       | expired_date
+----+------------+--------------------------------------------------------------+---------------+------------+-------------+------------------------+-------+--------+----------+---------------------
+-------+--------------
+  1 | admin      | $2a$08$FNwGtNOOyunAHyyXQwBI5.iZHGhjcGBJn0iALx8QrrhiZjClUYyVa | Administrator | TaskSystem |             | admin@example.loc      |       |        | enabled  | 2022-02-25 17:28:27.
+397902 |
+  2 | ptsypyshev | $2a$08$v5wqdcMnUM.xFBiZjv.dB.YoQ1Uf1WFfoT3bLdcd6MU0gUqmV6iRa | Pavel         | Tsypyshev  |             | ptsypyshev@example.loc |       |        | enabled  | 2022-02-25 17:28:27.
+397902 |
+  3 | vpupkin    | $2a$08$eycdpjl6lKdJAEkh.ZoRn.QeF6TnzA3tpyaIMU43UsmbW7Kq8.V8O | Vasiliy       | Pupkin     |             | vpupkin@example.loc    |       |        | disabled | 2022-02-25 17:28:27.
+397902 |
+(3 rows)
+
+
+
+
+
