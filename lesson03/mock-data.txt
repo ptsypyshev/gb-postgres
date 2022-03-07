@@ -1,0 +1,10 @@
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t users -r 1000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t groups -r 1000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t user_group_membership -r 1000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t group_group_membership -r 1000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t task_statuses -r 10
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t tasks -r 10000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t task_membership -r 1000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t task_control_membership -r 2000
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t attachments -r 1500
+mock -a 10.0.3.3 -d simpletask -u simpletask -w $1mpLeP@ss tables -t attachment_membership -r 2000

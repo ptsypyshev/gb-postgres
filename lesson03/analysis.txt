@@ -1,0 +1,395 @@
+-- Analyze 1st query -----------------------------------------------------------------------------------------------------
+EXPLAIN ANALYZE
+SELECT *
+FROM tasks
+WHERE
+    responsible IN (SELECT id FROM users WHERE login = 'ptsypyshev')
+    AND
+    task_status IN (SELECT id FROM task_statuses WHERE task_status_name = 'in_progress')
+;
+
+-- Result output
+                                                       QUERY PLAN BEFORE INDEX CREATED
+--------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=2.74..3167.35 rows=1 width=749) (actual time=0.052..15.115 rows=2 loops=1)
+   ->  Hash Join  (cost=2.46..3060.78 rows=278 width=749) (actual time=0.039..11.951 rows=556 loops=1)
+         Hash Cond: (tasks.task_status = task_statuses.id)
+         ->  Seq Scan on tasks  (cost=0.00..3028.98 rows=9998 width=749) (actual time=0.009..5.238 rows=9998 loops=1)
+         ->  Hash  (cost=2.45..2.45 rows=1 width=4) (actual time=0.021..0.022 rows=1 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               ->  Seq Scan on task_statuses  (cost=0.00..2.45 rows=1 width=4) (actual time=0.010..0.018 rows=1 loops=1)
+                     Filter: ((task_status_name)::text = 'in_progress'::text)
+                     Rows Removed by Filter: 17
+   ->  Index Scan using users_pkey on users  (cost=0.27..0.38 rows=1 width=4) (actual time=0.005..0.005 rows=0 loops=556)
+         Index Cond: (id = tasks.responsible)
+         Filter: ((login)::text = 'ptsypyshev'::text)
+         Rows Removed by Filter: 1
+ Planning Time: 1.131 ms
+ Execution Time: 15.185 ms
+(15 rows)
+ Planning Time: 0.618 ms
+ Execution Time: 15.551 ms
+(15 rows)
+ Planning Time: 0.618 ms
+ Execution Time: 15.487 ms
+(15 rows)
+ Planning Time: 0.715 ms
+ Execution Time: 15.324 ms
+(15 rows)
+ Planning Time: 0.608 ms
+ Execution Time: 15.495 ms
+(15 rows)
+
+-- Result output with index - CREATE INDEX users_login_idx ON users (login);
+                                                         QUERY PLAN AFTER INDEX CREATED
+-----------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=2.74..3072.55 rows=1 width=749) (actual time=0.101..12.140 rows=2 loops=1)
+   Join Filter: (tasks.responsible = users.id)
+   Rows Removed by Join Filter: 554
+   ->  Index Scan using users_login_idx on users  (cost=0.27..8.29 rows=1 width=4) (actual time=0.053..0.057 rows=1 loops=1)
+         Index Cond: ((login)::text = 'ptsypyshev'::text)
+   ->  Hash Join  (cost=2.46..3060.78 rows=278 width=749) (actual time=0.043..11.867 rows=556 loops=1)
+         Hash Cond: (tasks.task_status = task_statuses.id)
+         ->  Seq Scan on tasks  (cost=0.00..3028.98 rows=9998 width=749) (actual time=0.006..5.161 rows=9998 loops=1)
+         ->  Hash  (cost=2.45..2.45 rows=1 width=4) (actual time=0.021..0.022 rows=1 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               ->  Seq Scan on task_statuses  (cost=0.00..2.45 rows=1 width=4) (actual time=0.009..0.017 rows=1 loops=1)
+                     Filter: ((task_status_name)::text = 'in_progress'::text)
+                     Rows Removed by Filter: 17
+ Planning Time: 0.973 ms
+ Execution Time: 12.210 ms
+(15 rows)
+ Planning Time: 0.833 ms
+ Execution Time: 12.823 ms
+(15 rows)
+ Planning Time: 0.673 ms
+ Execution Time: 12.418 ms
+(15 rows)
+ Planning Time: 0.633 ms
+ Execution Time: 12.514 ms
+(15 rows)
+ Planning Time: 0.906 ms
+ Execution Time: 9.267 ms
+(15 rows)
+
+-- Get users_login_idx_size
+SELECT pg_relation_size('users_login_idx') AS users_login_idx_size;
+ users_login_idx_size
+----------------------
+                81920
+(1 row)
+
+-- Average query execution time decreased from 15.4 ms to 11.9 ms (22,7%)
+--------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- Analyze 2nd query -----------------------------------------------------------------------------------------------------
+EXPLAIN ANALYZE
+SELECT t.id, a.attachment_link
+FROM tasks t
+LEFT JOIN attachment_membership am
+ON t.id = am.task_id
+LEFT JOIN attachments a
+ON a.id = am.attachment_id
+WHERE t.id = 2
+;
+
+-- Result output
+                                                               QUERY PLAN BEFORE INDEX CREATED
+----------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join  (cost=0.56..56.71 rows=1 width=567) (actual time=0.077..0.930 rows=3 loops=1)
+   ->  Nested Loop Left Join  (cost=0.29..48.40 rows=1 width=8) (actual time=0.066..0.907 rows=3 loops=1)
+         Join Filter: (t.id = am.task_id)
+         ->  Index Only Scan using tasks_pkey on tasks t  (cost=0.29..4.30 rows=1 width=4) (actual time=0.051..0.054 rows=1 loops=1)
+               Index Cond: (id = 2)
+               Heap Fetches: 0
+         ->  Seq Scan on attachment_membership am  (cost=0.00..44.06 rows=3 width=8) (actual time=0.012..0.847 rows=3 loops=1)
+               Filter: (task_id = 2)
+               Rows Removed by Filter: 2002
+   ->  Index Scan using attachments_pkey on attachments a  (cost=0.28..8.29 rows=1 width=567) (actual time=0.005..0.005 rows=1 loops=3)
+         Index Cond: (id = am.attachment_id)
+ Planning Time: 0.738 ms
+ Execution Time: 1.032 ms
+(13 rows)
+ Planning Time: 0.409 ms
+ Execution Time: 0.940 ms
+(13 rows)
+ Planning Time: 0.531 ms
+ Execution Time: 0.950 ms
+(13 rows)
+ Planning Time: 0.643 ms
+ Execution Time: 0.888 ms
+(13 rows)
+ Planning Time: 0.518 ms
+ Execution Time: 1.227 ms
+(13 rows)
+
+-- Result output with index - CREATE INDEX attachment_membership_task_id_idx ON attachment_membership (task_id) INCLUDE (attachment_id);
+                                                                                 QUERY PLAN AFTER INDEX CREATED
+------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------
+ Nested Loop Left Join  (cost=0.84..16.98 rows=1 width=567) (actual time=0.033..0.050 rows=3 loops=1)
+   ->  Nested Loop Left Join  (cost=0.56..8.67 rows=1 width=8) (actual time=0.023..0.028 rows=3 loops=1)
+         Join Filter: (t.id = am.task_id)
+         ->  Index Only Scan using tasks_pkey on tasks t  (cost=0.29..4.30 rows=1 width=4) (actual time=0.010..0.011 rows=1 loops=1)
+               Index Cond: (id = 2)
+               Heap Fetches: 0
+         ->  Index Only Scan using attachment_membership_task_id_idx on attachment_membership am  (cost=0.28..4.33 rows=3 width=8) (actual time=0.008.
+.0.011 rows=3 loops=1)
+               Index Cond: (task_id = 2)
+               Heap Fetches: 0
+   ->  Index Scan using attachments_pkey on attachments a  (cost=0.28..8.29 rows=1 width=567) (actual time=0.005..0.005 rows=1 loops=3)
+         Index Cond: (id = am.attachment_id)
+ Planning Time: 0.430 ms
+ Execution Time: 0.103 ms
+(13 rows)
+ Planning Time: 0.460 ms
+ Execution Time: 0.091 ms
+(13 rows)
+ Planning Time: 0.432 ms
+ Execution Time: 0.103 ms
+(13 rows)
+ Planning Time: 0.468 ms
+ Execution Time: 0.105 ms
+(13 rows)
+ Planning Time: 0.381 ms
+ Execution Time: 0.090 ms
+(13 rows)
+
+-- Get attachment_membership_task_id_idx_size
+SELECT pg_relation_size('attachment_membership_task_id_idx') AS attachment_membership_task_id_idx_size;
+ attachment_membership_task_id_idx_size
+----------------------------------------
+                                  65536
+(1 row)
+-- Average query execution time decreased from 1.007 ms to 0.098 ms (90,3%)
+--------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- Analyze 3rd query -----------------------------------------------------------------------------------------------------
+EXPLAIN ANALYZE
+SELECT parent_id, child_id
+FROM task_membership
+WHERE parent_id = 3;
+
+-- Result output
+                                                QUERY PLAN BEFORE INDEX CREATED
+----------------------------------------------------------------------------------------------------------
+ Seq Scan on task_membership  (cost=0.00..21.55 rows=3 width=8) (actual time=0.016..0.426 rows=3 loops=1)
+   Filter: (parent_id = 3)
+   Rows Removed by Filter: 1001
+ Planning Time: 0.342 ms
+ Execution Time: 0.446 ms
+(5 rows)
+ Planning Time: 0.080 ms
+ Execution Time: 0.431 ms
+(5 rows)
+ Planning Time: 0.081 ms
+ Execution Time: 0.420 ms
+(5 rows)
+ Planning Time: 0.078 ms
+ Execution Time: 0.645 ms
+(5 rows)
+ Planning Time: 0.074 ms
+ Execution Time: 0.432 ms
+(5 rows)
+
+
+-- Result output with index - CREATE INDEX task_membership_parent_id_idx ON task_membership (parent_id) INCLUDE (child_id);
+                                                                     QUERY PLAN AFTER INDEX CREATED
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Index Only Scan using task_membership_parent_id_idx on task_membership  (cost=0.28..4.33 rows=3 width=8) (actual time=0.020..0.023 rows=3 loops=1)
+   Index Cond: (parent_id = 3)
+   Heap Fetches: 0
+ Planning Time: 0.107 ms
+ Execution Time: 0.050 ms
+(5 rows)
+ Planning Time: 0.107 ms
+ Execution Time: 0.051 ms
+(5 rows)
+ Planning Time: 0.104 ms
+ Execution Time: 0.059 ms
+(5 rows)
+ Planning Time: 0.136 ms
+ Execution Time: 0.053 ms
+(5 rows)
+ Planning Time: 0.138 ms
+ Execution Time: 0.066 ms
+(5 rows)
+
+-- Get task_membership_parent_id_idx_size
+SELECT pg_relation_size('task_membership_parent_id_idx') AS task_membership_parent_id_idx_size;
+ task_membership_parent_id_idx_size
+------------------------------------
+                              40960
+(1 row)
+-- Average query execution time decreased from 0.475 ms to 0.056 ms (88.2%)
+--------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- Analyze 4th query -----------------------------------------------------------------------------------------------------
+EXPLAIN ANALYZE
+WITH RECURSIVE tm_chain(parent_id, child_id) AS (
+    SELECT parent_id, child_id
+    FROM task_membership
+    WHERE parent_id = 3
+
+    UNION
+
+    SELECT tm.parent_id, tm.child_id
+    FROM task_membership tm
+    JOIN tm_chain tmc
+    ON tmc.child_id = tm.parent_id
+)
+SELECT *
+FROM tm_chain;
+
+-- Result output
+                                                              QUERY PLAN BEFORE INDEX CREATED
+---------------------------------------------------------------------------------------------------------------------------------------
+ CTE Scan on tm_chain  (cost=269.01..275.47 rows=323 width=8) (actual time=0.018..1.831 rows=5 loops=1)
+   CTE tm_chain
+     ->  Recursive Union  (cost=0.00..269.01 rows=323 width=8) (actual time=0.016..1.824 rows=5 loops=1)
+           ->  Seq Scan on task_membership  (cost=0.00..21.55 rows=3 width=8) (actual time=0.013..0.401 rows=3 loops=1)
+                 Filter: (parent_id = 3)
+                 Rows Removed by Filter: 1001
+           ->  Hash Join  (cost=0.97..24.10 rows=32 width=8) (actual time=0.396..0.703 rows=1 loops=2)
+                 Hash Cond: (tm.parent_id = tmc.child_id)
+                 ->  Seq Scan on task_membership tm  (cost=0.00..19.04 rows=1004 width=8) (actual time=0.017..0.277 rows=1004 loops=2)
+                 ->  Hash  (cost=0.60..0.60 rows=30 width=4) (actual time=0.009..0.009 rows=2 loops=2)
+                       Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                       ->  WorkTable Scan on tm_chain tmc  (cost=0.00..0.60 rows=30 width=4) (actual time=0.002..0.003 rows=2 loops=2)
+ Planning Time: 0.262 ms
+ Execution Time: 1.897 ms
+(14 rows)
+ Planning Time: 0.174 ms
+ Execution Time: 2.081 ms
+(14 rows)
+ Planning Time: 0.501 ms
+ Execution Time: 2.044 ms
+(14 rows)
+ Planning Time: 0.506 ms
+ Execution Time: 1.475 ms
+(14 rows)
+ Planning Time: 0.268 ms
+ Execution Time: 2.154 ms
+(14 rows)
+
+-- Result output with index - CREATE INDEX task_membership_parent_id_idx ON task_membership (parent_id) INCLUDE (child_id);
+                                                                            QUERY PLAN AFTER INDEX CREATED
+------------------------------------------------------------------------------------------------------------------------------------------------------
+------------
+ CTE Scan on tm_chain  (cost=251.79..258.25 rows=323 width=8) (actual time=0.018..1.608 rows=5 loops=1)
+   CTE tm_chain
+     ->  Recursive Union  (cost=0.28..251.79 rows=323 width=8) (actual time=0.016..1.602 rows=5 loops=1)
+           ->  Index Only Scan using task_membership_parent_id_idx on task_membership  (cost=0.28..4.33 rows=3 width=8) (actual time=0.014..0.016 rows
+=3 loops=1)
+                 Index Cond: (parent_id = 3)
+                 Heap Fetches: 0
+           ->  Hash Join  (cost=0.97..24.10 rows=32 width=8) (actual time=0.400..0.783 rows=1 loops=2)
+                 Hash Cond: (tm.parent_id = tmc.child_id)
+                 ->  Seq Scan on task_membership tm  (cost=0.00..19.04 rows=1004 width=8) (actual time=0.007..0.296 rows=1004 loops=2)
+                 ->  Hash  (cost=0.60..0.60 rows=30 width=4) (actual time=0.005..0.006 rows=2 loops=2)
+                       Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                       ->  WorkTable Scan on tm_chain tmc  (cost=0.00..0.60 rows=30 width=4) (actual time=0.002..0.002 rows=2 loops=2)
+ Planning Time: 0.170 ms
+ Execution Time: 1.692 ms
+(14 rows)
+ Planning Time: 0.295 ms
+ Execution Time: 1.569 ms
+(14 rows)
+ Planning Time: 0.463 ms
+ Execution Time: 1.349 ms
+(14 rows)
+ Planning Time: 0.535 ms
+ Execution Time: 1.625 ms
+(14 rows)
+ Planning Time: 0.500 ms
+ Execution Time: 1.456 ms
+(14 rows)
+
+-- Get task_membership_parent_id_idx_size
+SELECT pg_relation_size('task_membership_parent_id_idx') AS task_membership_parent_id_idx_size;
+ task_membership_parent_id_idx_size
+------------------------------------
+                              40960
+(1 row)
+-- Average query execution time decreased from 1.930 ms to 1.544 ms (20%)
+--------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- Analyze 5th query -----------------------------------------------------------------------------------------------------
+EXPLAIN ANALYZE
+SELECT tcm.task_id
+FROM users u
+LEFT JOIN task_control_membership tcm
+ON u.id = tcm.controller_id
+WHERE u.login = 'ppetrov';
+
+-- Result output
+                                                            QUERY PLAN BEFORE INDEX CREATED
+----------------------------------------------------------------------------------------------------------------------------------
+ Hash Right Join  (cost=228.31..272.64 rows=4 width=4) (actual time=0.503..1.827 rows=7 loops=1)
+   Hash Cond: (tcm.controller_id = u.id)
+   ->  Seq Scan on task_control_membership tcm  (cost=0.00..39.03 rows=2003 width=8) (actual time=0.009..0.542 rows=2003 loops=1)
+   ->  Hash  (cost=228.30..228.30 rows=1 width=4) (actual time=0.483..0.485 rows=1 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 9kB
+         ->  Seq Scan on users u  (cost=0.00..228.30 rows=1 width=4) (actual time=0.013..0.468 rows=1 loops=1)
+               Filter: ((login)::text = 'ppetrov'::text)
+               Rows Removed by Filter: 503
+ Planning Time: 0.282 ms
+ Execution Time: 1.859 ms
+(10 rows)
+ Planning Time: 0.257 ms
+ Execution Time: 2.059 ms
+(10 rows)
+ Planning Time: 0.295 ms
+ Execution Time: 1.976 ms
+(10 rows)
+ Planning Time: 0.288 ms
+ Execution Time: 2.071 ms
+(10 rows)
+ Planning Time: 0.287 ms
+ Execution Time: 2.085 ms
+(10 rows)
+
+-- Result output with index - CREATE INDEX task_control_membership_controller_id_idx ON task_control_membership (controller_id) INCLUDE (task_id);
+                                                                                    QUERY PLAN AFTER INDEX CREATED
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------
+ Nested Loop Left Join  (cost=0.55..12.68 rows=4 width=4) (actual time=0.024..0.032 rows=7 loops=1)
+   ->  Index Scan using users_login_idx on users u  (cost=0.27..8.29 rows=1 width=4) (actual time=0.014..0.015 rows=1 loops=1)
+         Index Cond: ((login)::text = 'ppetrov'::text)
+   ->  Index Only Scan using task_control_membership_controller_id_idx on task_control_membership tcm  (cost=0.28..4.35 rows=4 width=8) (actual time=0
+.006..0.009 rows=7 loops=1)
+         Index Cond: (controller_id = u.id)
+         Heap Fetches: 0
+ Planning Time: 0.637 ms
+ Execution Time: 0.074 ms
+(8 rows)
+ Planning Time: 0.454 ms
+ Execution Time: 0.087 ms
+(8 rows)
+ Planning Time: 0.454 ms
+ Execution Time: 0.072 ms
+(8 rows)
+ Planning Time: 0.357 ms
+ Execution Time: 0.070 ms
+(8 rows)
+ Planning Time: 0.551 ms
+ Execution Time: 0.080 ms
+(8 rows)
+
+-- Get task_control_membership_controller_id_idx_size
+SELECT pg_relation_size('task_control_membership_controller_id_idx') AS task_control_membership_controller_id_idx_size;
+ task_control_membership_controller_id_idx_size
+------------------------------------------------
+                                          65536
+(1 row)
+-- Average query execution time decreased from 2.010 ms to 0.077 ms (96,2%)
+--------------------------------------------------------------------------------------------------------------------------
